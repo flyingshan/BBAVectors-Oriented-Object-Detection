@@ -13,34 +13,38 @@
 """
 import xml.etree.ElementTree as ET
 import os
-#import cPickle
+# import cPickle
 import numpy as np
 import matplotlib.pyplot as plt
-from . import polyiou
+from .DOTA_devkit import polyiou
+# TODO: 安装DOTA-devkit, 并成功导入polyiou模块
 from functools import partial
 import cv2
+
 
 def parse_gt(filename):
     objects = []
     target = ET.parse(filename).getroot()
-    for obj in target.iter('HRSC_Object'):
+    for obj in target.iter('object'):
         object_struct = {}
         difficult = int(obj.find('difficult').text)
-        box_xmin = int(obj.find('box_xmin').text)  # bbox
-        box_ymin = int(obj.find('box_ymin').text)
-        box_xmax = int(obj.find('box_xmax').text)
-        box_ymax = int(obj.find('box_ymax').text)
-        mbox_cx = float(obj.find('mbox_cx').text)  # rbox
-        mbox_cy = float(obj.find('mbox_cy').text)
-        mbox_w = float(obj.find('mbox_w').text)
-        mbox_h = float(obj.find('mbox_h').text)
-        mbox_ang = float(obj.find('mbox_ang').text)*180/np.pi
+        # 同dataset文件中一样，bbox现在先用不到
+        # box_xmin = int(obj.find('box_xmin').text)  # bbox
+        # box_ymin = int(obj.find('box_ymin').text)
+        # box_xmax = int(obj.find('box_xmax').text)
+        # box_ymax = int(obj.find('box_ymax').text)
+        bbox = obj.find('bndbox')
+        mbox_cx = float(bbox.find('x').text)  # rbox
+        mbox_cy = float(bbox.find('y').text)
+        mbox_w = float(bbox.find('w').text)
+        mbox_h = float(bbox.find('h').text)
+        mbox_ang = float(bbox.find('a').text) * 180 / np.pi
         rect = ((mbox_cx, mbox_cy), (mbox_w, mbox_h), mbox_ang)
         pts_4 = cv2.boxPoints(rect)  # 4 x 2
-        bl = pts_4[0,:]
-        tl = pts_4[1,:]
-        tr = pts_4[2,:]
-        br = pts_4[3,:]
+        bl = pts_4[0, :]
+        tl = pts_4[1, :]
+        tr = pts_4[2, :]
+        br = pts_4[3, :]
         object_struct['name'] = 'ship'
         object_struct['difficult'] = difficult
         object_struct['bbox'] = [float(tl[0]),
@@ -53,6 +57,7 @@ def parse_gt(filename):
                                  float(bl[1])]
         objects.append(object_struct)
     return objects
+
 
 def voc_ap(rec, prec, use_07_metric=False):
     """ ap = voc_ap(rec, prec, [use_07_metric])
@@ -94,10 +99,9 @@ def voc_eval(detpath,
              classname,
              ovthresh=0.5,
              use_07_metric=False):
-
     with open(imagesetfile, 'r') as f:
         lines = f.readlines()
-    imagenames = [x.strip() for x in lines]
+    imagenames = [x.strip()[:-4] for x in lines] # to strip .xml suffix
     recs = {}
     for i, imagename in enumerate(imagenames):
         recs[imagename] = parse_gt(os.path.join(annopath.format(imagename)))
@@ -123,23 +127,23 @@ def voc_eval(detpath,
     image_ids = [x[0] for x in splitlines]
     confidence = np.array([float(x[1]) for x in splitlines])
 
-    #print('check confidence: ', confidence)
+    # print('check confidence: ', confidence)
 
     BB = np.array([[float(z) for z in x[2:]] for x in splitlines])
 
-    if len(confidence)>1:
+    if len(confidence) > 1:
         # sort by confidence
         sorted_ind = np.argsort(-confidence)
         sorted_scores = np.sort(-confidence)
 
-        #print('check sorted_scores: ', sorted_scores)
-        #print('check sorted_ind: ', sorted_ind)
+        # print('check sorted_scores: ', sorted_scores)
+        # print('check sorted_ind: ', sorted_ind)
 
         ## note the usage only in numpy not for list
         BB = BB[sorted_ind, :]
         image_ids = [image_ids[x] for x in sorted_ind]
-    #print('check imge_ids: ', image_ids)
-    #print('imge_ids len:', len(image_ids))
+    # print('check imge_ids: ', image_ids)
+    # print('imge_ids len:', len(image_ids))
     # go down dets and mark TPs and FPs
     nd = len(image_ids)
     tp = np.zeros(nd)
@@ -158,7 +162,7 @@ def voc_eval(detpath,
 
             # 1. calculate the overlaps between hbbs, if the iou between hbbs are 0, the iou between obbs are 0, too.
             # pdb.set_trace()
-            BBGT_xmin =  np.min(BBGT[:, 0::2], axis=1)
+            BBGT_xmin = np.min(BBGT[:, 0::2], axis=1)
             BBGT_ymin = np.min(BBGT[:, 1::2], axis=1)
             BBGT_xmax = np.max(BBGT[:, 0::2], axis=1)
             BBGT_ymax = np.max(BBGT[:, 1::2], axis=1)
@@ -185,14 +189,15 @@ def voc_eval(detpath,
             BBGT_keep_mask = overlaps > 0
             BBGT_keep = BBGT[BBGT_keep_mask, :]
             BBGT_keep_index = np.where(overlaps > 0)[0]
+
             # pdb.set_trace()
             def calcoverlaps(BBGT_keep, bb):
                 overlaps = []
                 for index, GT in enumerate(BBGT_keep):
-
                     overlap = polyiou.iou_poly(polyiou.VectorDouble(BBGT_keep[index]), polyiou.VectorDouble(bb))
                     overlaps.append(overlap)
                 return overlaps
+
             if len(BBGT_keep) > 0:
                 overlaps = calcoverlaps(BBGT_keep, bb)
 
@@ -216,7 +221,6 @@ def voc_eval(detpath,
     # print('check fp:', fp)
     # print('check tp', tp)
 
-
     # print('npos num:', npos)
     fp = np.cumsum(fp)
     tp = np.cumsum(tp)
@@ -229,9 +233,10 @@ def voc_eval(detpath,
 
     return rec, prec, ap
 
+
 def main():
     detpath = r'PATH_TO_BE_CONFIGURED/Task1_{:s}.txt'
-    annopath = r'PATH_TO_BE_CONFIGURED/{:s}.txt' # change the directory to the path of val/labelTxt, if you want to do evaluation on the valset
+    annopath = r'PATH_TO_BE_CONFIGURED/{:s}.txt'
     imagesetfile = r'PATH_TO_BE_CONFIGURED/test.txt'
     classnames = ['ship']
     classaps = []
@@ -245,7 +250,7 @@ def main():
                                  ovthresh=0.5,
                                  use_07_metric=True)
         map = map + ap
-        #print('rec: ', rec, 'prec: ', prec, 'ap: ', ap)
+        # print('rec: ', rec, 'prec: ', prec, 'ap: ', ap)
         print('ap: ', ap)
         classaps.append(ap)
 
@@ -254,11 +259,12 @@ def main():
         # plt.xlabel('recall')
         # plt.ylabel('precision')
         # plt.plot(rec, prec)
-       # plt.show()
-    map = map/len(classnames)
+    # plt.show()
+    map = map / len(classnames)
     print('map:', map)
-    classaps = 100*np.array(classaps)
+    classaps = 100 * np.array(classaps)
     print('classaps: ', classaps)
+
 
 if __name__ == '__main__':
     main()

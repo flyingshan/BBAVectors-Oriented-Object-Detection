@@ -182,7 +182,7 @@ class TestModule(object):
                     box = np.int0(box)
                     cv2.drawContours(ori_image, [box], 0, (255, 255, 255), 1)
 
-            cv2.imshow('pr_image', ori_image)
+            # cv2.imshow('pr_image', ori_image)
             k = cv2.waitKey(0) & 0xFF
             if k == ord('q'):
                 cv2.destroyAllWindows()
