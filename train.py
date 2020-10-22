@@ -151,7 +151,7 @@ class TrainModule(object):
             np.savetxt(os.path.join(save_path, 'train_loss.txt'), train_loss, fmt='%.6f')
 
             # 隔5保1
-            if epoch % 5 == 0 or epoch > 20:
+            if epoch % 5 == 0: # or epoch > 20:
                 self.save_model(os.path.join(save_path, 'model_{}.pth'.format(epoch)),
                                 epoch,
                                 self.model,

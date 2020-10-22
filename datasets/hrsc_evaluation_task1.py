@@ -135,7 +135,7 @@ def voc_eval(detpath,
         # sort by confidence
         sorted_ind = np.argsort(-confidence)
         sorted_scores = np.sort(-confidence)
-
+        thres_index = np.argwhere(sorted_scores<-0.3)[-1][0]
         # print('check sorted_scores: ', sorted_scores)
         # print('check sorted_ind: ', sorted_ind)
 
@@ -230,7 +230,13 @@ def voc_eval(detpath,
     # ground truth
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     ap = voc_ap(rec, prec, use_07_metric)
-
+    f1_score = np.zeros([prec.shape[0],1])
+    for i in range(prec.shape[0]):
+      f1_score[i,0] = (2 * prec[i] * rec[i] / (prec[i] + rec[i] + 1e-6))
+  
+    print(('precision = {:.4f}'.format(prec[thres_index])))
+    print(('recall = {:.4f}'.format(rec[thres_index])))
+    print(('f1_score = {:.4f}'.format(f1_score[thres_index][0])))
     return rec, prec, ap
 
 
