@@ -1,6 +1,7 @@
 import torch.nn.functional as F
 import torch
 
+
 class DecDecoder(object):
     def __init__(self, K, conf_thresh, num_classes):
         self.K = K
@@ -18,12 +19,11 @@ class DecDecoder(object):
 
         topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), self.K)
         topk_clses = (topk_ind // self.K).int()
-        topk_inds = self._gather_feat( topk_inds.view(batch, -1, 1), topk_ind).view(batch, self.K)
+        topk_inds = self._gather_feat(topk_inds.view(batch, -1, 1), topk_ind).view(batch, self.K)
         topk_ys = self._gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, self.K)
         topk_xs = self._gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, self.K)
 
         return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
-
 
     def _nms(self, heat, kernel=3):
         hmax = F.max_pool2d(heat, (kernel, kernel), stride=1, padding=(kernel - 1) // 2)
@@ -47,6 +47,12 @@ class DecDecoder(object):
         return feat
 
     def ctdet_decode(self, pr_decs):
+        """
+        这里的代码说明自己应该有可能做到这些事：
+        1. 根据输出的hm图计算出有效的检测结果
+        2. 获取的其它支路输出的在检测到的中心点处的值
+        3. 对于2, 例如说可以根据中心点和wh输出的vector计算出bounding box
+        """
         heat = pr_decs['hm']
         wh = pr_decs['wh']
         reg = pr_decs['reg']
@@ -55,6 +61,7 @@ class DecDecoder(object):
         batch, c, height, width = heat.size()
         heat = self._nms(heat)
 
+        # 超级神秘的代码. decoder能够解答很多问题
         scores, inds, clses, ys, xs = self._topk(heat)
         reg = self._tranpose_and_gather_feat(reg, inds)
         reg = reg.view(batch, self.K, 2)
@@ -65,21 +72,24 @@ class DecDecoder(object):
         wh = self._tranpose_and_gather_feat(wh, inds)
         wh = wh.view(batch, self.K, 10)
         # add
+        # cls_theta应该就是判断是OBB还是HBB的概率
+        # 如果是OBB的话, t r b l就用wh支路前8个通道的值计算出结果即
+        # 如果是hbb的话, t r b l就用wh支路后2个通道(wh)的值计算出结果
         cls_theta = self._tranpose_and_gather_feat(cls_theta, inds)
         cls_theta = cls_theta.view(batch, self.K, 1)
-        mask = (cls_theta>0.8).float().view(batch, self.K, 1)
+        mask = (cls_theta > 0.8).float().view(batch, self.K, 1)
         #
-        tt_x = (xs+wh[..., 0:1])*mask + (xs)*(1.-mask)
-        tt_y = (ys+wh[..., 1:2])*mask + (ys-wh[..., 9:10]/2)*(1.-mask)
-        rr_x = (xs+wh[..., 2:3])*mask + (xs+wh[..., 8:9]/2)*(1.-mask)
-        rr_y = (ys+wh[..., 3:4])*mask + (ys)*(1.-mask)
-        bb_x = (xs+wh[..., 4:5])*mask + (xs)*(1.-mask)
-        bb_y = (ys+wh[..., 5:6])*mask + (ys+wh[..., 9:10]/2)*(1.-mask)
-        ll_x = (xs+wh[..., 6:7])*mask + (xs-wh[..., 8:9]/2)*(1.-mask)
-        ll_y = (ys+wh[..., 7:8])*mask + (ys)*(1.-mask)
+        tt_x = (xs + wh[..., 0:1]) * mask + (xs) * (1. - mask)
+        tt_y = (ys + wh[..., 1:2]) * mask + (ys - wh[..., 9:10] / 2) * (1. - mask)
+        rr_x = (xs + wh[..., 2:3]) * mask + (xs + wh[..., 8:9] / 2) * (1. - mask)
+        rr_y = (ys + wh[..., 3:4]) * mask + (ys) * (1. - mask)
+        bb_x = (xs + wh[..., 4:5]) * mask + (xs) * (1. - mask)
+        bb_y = (ys + wh[..., 5:6]) * mask + (ys + wh[..., 9:10] / 2) * (1. - mask)
+        ll_x = (xs + wh[..., 6:7]) * mask + (xs - wh[..., 8:9] / 2) * (1. - mask)
+        ll_y = (ys + wh[..., 7:8]) * mask + (ys) * (1. - mask)
         #
-        detections = torch.cat([xs,                      # cen_x
-                                ys,                      # cen_y
+        detections = torch.cat([xs,  # cen_x
+                                ys,  # cen_y
                                 tt_x,
                                 tt_y,
                                 rr_x,
@@ -92,6 +102,6 @@ class DecDecoder(object):
                                 clses],
                                dim=2)
 
-        index = (scores>self.conf_thresh).squeeze(0).squeeze(1)
-        detections = detections[:,index,:]
+        index = (scores > self.conf_thresh).squeeze(0).squeeze(1)
+        detections = detections[:, index, :]
         return detections.data.cpu().numpy()

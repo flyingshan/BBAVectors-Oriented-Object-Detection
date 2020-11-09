@@ -11,12 +11,14 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
 
     pts0 = {cat: [] for cat in dsets.category}
     scores0 = {cat: [] for cat in dsets.category}
+    # 通过这样的方式获取检测结果
     for pred in predictions:
         cen_pt = np.asarray([pred[0], pred[1]], np.float32)
         tt = np.asarray([pred[2], pred[3]], np.float32)
         rr = np.asarray([pred[4], pred[5]], np.float32)
         bb = np.asarray([pred[6], pred[7]], np.float32)
         ll = np.asarray([pred[8], pred[9]], np.float32)
+        # 向量加减法，太聪明了吧！
         tl = tt + ll - cen_pt
         bl = bb + ll - cen_pt
         tr = tt + rr - cen_pt
