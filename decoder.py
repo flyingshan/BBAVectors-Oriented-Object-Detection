@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 import torch
-
+import math
 
 class DecDecoder(object):
     def __init__(self, K, conf_thresh, num_classes):
@@ -46,6 +46,55 @@ class DecDecoder(object):
         feat = self._gather_feat(feat, ind)
         return feat
 
+    def transform_coord_back(self, wh, s, new_anno):
+        """
+        现在的输入：
+        wh:[Batch, K, 5]
+        其中[:,:,0] 是xtx [:,:,1] 是xty
+          [:,:,2] 是k [:,:,3] 是w [:,:,4] 是h
+        s: [Batch, K, 1] 用来判断xt yt 是否异号的
+        xs: [1, 100, 1] 即为xc
+        ys: [1, 100, 1] 即为yc
+        需要的输出:
+        ttx
+        tty
+        bbx
+        bby
+        rrx
+        rry
+        llx
+        lly
+        """
+        xt = wh[:, :, 0:1]
+        yt = wh[:, :, 1:2]
+        k = wh[:, :, 2:3]
+        w = wh[:, :, 3:4]
+        h = wh[:, :, 4:5]
+        s = (s > 0.5).float().view(batch, self.K, 1) - (s <= 0.5).float().view(batch, self.K, 1)
+        bbx = xt
+        bby = yt * s
+        ttx = -1 * xt
+        tty = -1 * xt * s
+        theta = torch.arctan(yt / xt)
+        short_len = torch.norm(torch.cat([bbx, bby], dim=2), dim=2)
+        rrx = short_len * torch.cos(math.pi / 2 - theta)
+        rry = short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
+        llx = -1 * short_len * torch.cos(math.pi / 2 - theta)
+        lly = -1 * short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
+
+        ct = np.array([new_anno['xc'], new_anno['yc']])
+        bb = np.array([xt, yt * s])
+        tt = np.array([-1 * xt, -1 * yt * s])
+        theta = np.arctan([yt / xt])[0]
+        short_len = np.linalg.norm(bb) * k
+        rr = np.array([short_len * np.cos(np.pi / 2 - theta), short_len * np.sin(np.pi / 2 - theta) * (-s)])
+        ll = np.array([-1 * short_len * np.cos(np.pi / 2 - theta), -1 * short_len * np.sin(np.pi / 2 - theta) * (-s)])
+        br = bb + rr + ct
+        bl = bb + ll + ct
+        tr = tt + rr + ct
+        tl = tt + ll + ct
+        return [bl, tl, tr, br]
+
     def ctdet_decode(self, pr_decs):
         """
         这里的代码说明自己应该有可能做到这些事：
@@ -69,12 +118,30 @@ class DecDecoder(object):
         ys = ys.view(batch, self.K, 1) + reg[:, :, 1:2]
         clses = clses.view(batch, self.K, 1).float()
         scores = scores.view(batch, self.K, 1)
+        # 这里就获取到了([1, 100, 5])的wh向量
         wh = self._tranpose_and_gather_feat(wh, inds)
-        wh = wh.view(batch, self.K, 10)
+        # print(inds.size(), wh.size())
+        wh = wh.view(batch, self.K, 6)  # 4
+        s = wh[:, :, -1:]
+        wh = wh[:, :, :-1]
+        # torch.Size([1, 100, 1]) torch.Size([1, 100, 5])
+        # print(s.size(), wh.size())
+
+        """
+        现在的输入：
+        wh:[Batch, K, 5] 
+        其中[:,:,0] 是xtx [:,:,1] 是xty
+          [:,:,2] 是k [:,:,3] 是w [:,:,4] 是h
+        s: [Batch, K, 1] 用来判断xt yt 是否异号的
+        xs: [1, 100, 1] 即为xc
+        ys: [1, 100, 1] 即为yc
+        """
+
         # add
         # cls_theta应该就是判断是OBB还是HBB的概率
         # 如果是OBB的话, t r b l就用wh支路前8个通道的值计算出结果即
         # 如果是hbb的话, t r b l就用wh支路后2个通道(wh)的值计算出结果
+        '''
         cls_theta = self._tranpose_and_gather_feat(cls_theta, inds)
         cls_theta = cls_theta.view(batch, self.K, 1)
         mask = (cls_theta > 0.8).float().view(batch, self.K, 1)
@@ -87,6 +154,41 @@ class DecDecoder(object):
         bb_y = (ys + wh[..., 5:6]) * mask + (ys + wh[..., 9:10] / 2) * (1. - mask)
         ll_x = (xs + wh[..., 6:7]) * mask + (xs - wh[..., 8:9] / 2) * (1. - mask)
         ll_y = (ys + wh[..., 7:8]) * mask + (ys) * (1. - mask)
+        '''
+        """
+        现在的输入：
+        wh:[Batch, K, 5] 
+        其中[:,:,0] 是xtx [:,:,1] 是xty
+          [:,:,2] 是k [:,:,3] 是w [:,:,4] 是h
+        s: [Batch, K, 1] 用来判断xt yt 是否异号的
+        xs: [1, 100, 1] 即为xc
+        ys: [1, 100, 1] 即为yc
+        需要的输出:
+        ttx
+        tty
+        bbx
+        bby
+        rrx
+        rry
+        llx
+        lly
+        """
+        xt = wh[:, :, 0:1]
+        yt = wh[:, :, 1:2]
+        k = wh[:, :, 2:3]
+        w = wh[:, :, 3:4]
+        h = wh[:, :, 4:5]
+        s = (s > 0.5).float().view(batch, self.K, 1) - (s <= 0.5).float().view(batch, self.K, 1)
+        bb_x = xt
+        bb_y = yt * s
+        tt_x = -1 * xt
+        tt_y = -1 * xt * s
+        theta = torch.arctan(yt / xt)
+        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2)
+        rr_x = short_len * torch.cos(math.pi / 2 - theta)
+        rr_y = short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
+        ll_x = -1 * short_len * torch.cos(math.pi / 2 - theta)
+        ll_y = -1 * short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
         #
         detections = torch.cat([xs,  # cen_x
                                 ys,  # cen_y
