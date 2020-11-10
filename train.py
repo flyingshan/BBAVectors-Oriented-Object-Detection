@@ -158,7 +158,7 @@ class TrainModule(object):
                                 self.optimizer)
 
             # 隔5测1（test指的是验证集？）
-            if 'test' in self.dataset_phase[args.dataset] and epoch % 5 == 0:
+            if 'test' in self.dataset_phase[args.dataset] and epoch % 5 == 0: #
                 # 使用dec_eval函数对结果指标进行计算
                 mAP = self.dec_eval(args, dsets['test'])
                 ap_list.append(mAP)

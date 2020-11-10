@@ -118,6 +118,7 @@ class DecDecoder(object):
         ys = ys.view(batch, self.K, 1) + reg[:, :, 1:2]
         clses = clses.view(batch, self.K, 1).float()
         scores = scores.view(batch, self.K, 1)
+        # print((clses > 0).sum(), (clses == 0).sum())
         # 这里就获取到了([1, 100, 5])的wh向量
         wh = self._tranpose_and_gather_feat(wh, inds)
         # print(inds.size(), wh.size())
@@ -184,12 +185,17 @@ class DecDecoder(object):
         tt_x = -1 * xt
         tt_y = -1 * xt * s
         theta = torch.arctan(yt / xt)
-        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2)
+        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2).unsqueeze(-1)
         rr_x = short_len * torch.cos(math.pi / 2 - theta)
         rr_y = short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
         ll_x = -1 * short_len * torch.cos(math.pi / 2 - theta)
         ll_y = -1 * short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
         #
+        # a = [xs,ys,tt_x,tt_y,rr_x,rr_y,bb_x,bb_y,ll_x,ll_y,scores,clses]
+        # b = ['xs','ys','tt_x','tt_y','rr_x','rr_y','bb_x','bb_y','ll_x','ll_y','scores','clses']
+        # for i,j in zip(a,b):
+        #   print(j, 'size:', i.size())
+
         detections = torch.cat([xs,  # cen_x
                                 ys,  # cen_y
                                 tt_x,
@@ -203,7 +209,8 @@ class DecDecoder(object):
                                 scores,
                                 clses],
                                dim=2)
-
+        # print(detections.size())
         index = (scores > self.conf_thresh).squeeze(0).squeeze(1)
         detections = detections[:, index, :]
+        # print(detections.size())
         return detections.data.cpu().numpy()

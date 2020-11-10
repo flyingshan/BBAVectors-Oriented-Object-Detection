@@ -5,6 +5,7 @@ from datasets.DOTA_devkit.ResultMerge_multi_process import py_cpu_nms_poly_fast,
 
 
 def decode_prediction(predictions, dsets, args, img_id, down_ratio):
+    # print(predictions.size())
     predictions = predictions[0, :, :]
     ori_image = dsets.load_image(dsets.img_ids.index(img_id))
     h, w, c = ori_image.shape
@@ -13,6 +14,7 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
     scores0 = {cat: [] for cat in dsets.category}
     # 通过这样的方式获取检测结果
     for pred in predictions:
+        # print(pred.size(), clse)
         cen_pt = np.asarray([pred[0], pred[1]], np.float32)
         tt = np.asarray([pred[2], pred[3]], np.float32)
         rr = np.asarray([pred[4], pred[5]], np.float32)
@@ -25,9 +27,11 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
         br = bb + rr - cen_pt
         score = pred[10]
         clse = pred[11]
+        # print(clse)
         pts = np.asarray([tr, br, bl, tl], np.float32)
         pts[:, 0] = pts[:, 0] * down_ratio / args.input_w * w
         pts[:, 1] = pts[:, 1] * down_ratio / args.input_h * h
+        
         pts0[dsets.category[int(clse)]].append(pts)
         scores0[dsets.category[int(clse)]].append(score)
     return pts0, scores0
