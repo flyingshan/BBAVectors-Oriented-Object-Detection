@@ -183,9 +183,9 @@ class DecDecoder(object):
         bb_x = xt
         bb_y = yt * s
         tt_x = -1 * xt
-        tt_y = -1 * xt * s
+        tt_y = -1 * yt * s
         theta = torch.arctan(yt / xt)
-        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2).unsqueeze(-1)
+        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2).unsqueeze(-1) * k.sigmoid()
         rr_x = short_len * torch.cos(math.pi / 2 - theta)
         rr_y = short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
         ll_x = -1 * short_len * torch.cos(math.pi / 2 - theta)

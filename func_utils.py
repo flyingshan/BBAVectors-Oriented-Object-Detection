@@ -21,10 +21,10 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
         bb = np.asarray([pred[6], pred[7]], np.float32)
         ll = np.asarray([pred[8], pred[9]], np.float32)
         # 向量加减法，太聪明了吧！
-        tl = tt + ll - cen_pt
-        bl = bb + ll - cen_pt
-        tr = tt + rr - cen_pt
-        br = bb + rr - cen_pt
+        tl = tt + ll + cen_pt # 我把减改为了加
+        bl = bb + ll + cen_pt #
+        tr = tt + rr + cen_pt #
+        br = bb + rr + cen_pt #
         score = pred[10]
         clse = pred[11]
         # print(clse)
