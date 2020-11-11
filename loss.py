@@ -64,6 +64,7 @@ class OffSmoothL1Loss(nn.Module):
         # torch.Size([1, 500])
         # torch.Size([1, 500])
         # torch.Size([1, 500, 2])
+        # print(output.size())
         pred = self._tranpose_and_gather_feat(output, ind)  # torch.Size([1, 500, 2])
         if mask.sum():
             mask = mask.unsqueeze(2).expand_as(pred).bool()
@@ -116,9 +117,10 @@ class LossAll(torch.nn.Module):
 
     def forward(self, pr_decs, gt_batch):
         hm_loss = self.L_hm(pr_decs['hm'], gt_batch['hm'])
+        # print(pr_decs['wh'][:, :-1, ...].size())
         wh_loss = self.L_wh(pr_decs['wh'][:, :-1, ...], gt_batch['reg_mask'], gt_batch['ind'],
                             gt_batch['wh'][:, :, :-1])  #
-        sign_loss = self.L_sign(pr_decs['wh'][:, -1:, ...].sigmoid(), gt_batch['reg_mask'], gt_batch['ind'],
+        sign_loss = self.L_sign(pr_decs['wh'][:, -1:, ...], gt_batch['reg_mask'], gt_batch['ind'],
                                 gt_batch['wh'][:, :, -1:])  # bce loss + sigmoid
         off_loss = self.L_off(pr_decs['reg'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['reg'])
         # add
@@ -136,5 +138,5 @@ class LossAll(torch.nn.Module):
         # print(cls_theta_loss)
         # print('-----------------')
 
-        loss = hm_loss + wh_loss + off_loss + cls_theta_loss + sign_loss  #
+        loss = hm_loss + wh_loss + off_loss + sign_loss + cls_theta_loss
         return loss

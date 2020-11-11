@@ -58,5 +58,8 @@ class CTRBOX(nn.Module):
             dec_dict[head] = self.__getattr__(head)(c2_combine)
             if 'hm' in head or 'cls' in head:
                 dec_dict[head] = torch.sigmoid(dec_dict[head])
+            if 'wh' in head:
+                dec_dict[head][:, -1:, :, :] = torch.sigmoid(dec_dict[head][:, -1:, :, :])
+                # dec_dict[head][:, 2:3, :, :] = torch.sigmoid(dec_dict[head][:, 2:3, :, :])
 
         return dec_dict

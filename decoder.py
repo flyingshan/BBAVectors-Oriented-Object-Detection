@@ -185,7 +185,7 @@ class DecDecoder(object):
         tt_x = -1 * xt
         tt_y = -1 * yt * s
         theta = torch.arctan(yt / xt)
-        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2).unsqueeze(-1) * k.sigmoid()
+        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2).unsqueeze(-1) * k
         rr_x = short_len * torch.cos(math.pi / 2 - theta)
         rr_y = short_len * torch.sin(math.pi / 2 - theta) * (-1) * s
         ll_x = -1 * short_len * torch.cos(math.pi / 2 - theta)
@@ -195,6 +195,29 @@ class DecDecoder(object):
         # b = ['xs','ys','tt_x','tt_y','rr_x','rr_y','bb_x','bb_y','ll_x','ll_y','scores','clses']
         # for i,j in zip(a,b):
         #   print(j, 'size:', i.size())
+
+"""
+        cls_theta = self._tranpose_and_gather_feat(cls_theta, inds)
+        cls_theta = cls_theta.view(batch, self.K, 1)
+        mask = (cls_theta > 0.8).float().view(batch, self.K, 1)
+        xt = wh[:, :, 0:1]
+        yt = wh[:, :, 1:2]
+        k = wh[:, :, 2:3]
+        w = wh[:, :, 3:4]
+        h = wh[:, :, 4:5]
+        s = (s > 0.5).float().view(batch, self.K, 1) - (s <= 0.5).float().view(batch, self.K, 1)
+        bb_x = (xt) * mask + (0) * (1. - mask)
+        bb_y = (yt * s) * mask + (h / 2) * (1. - mask)
+        tt_x = (-1 * xt) * mask + (0) * (1. - mask)
+        tt_y = (-1 * yt * s) * mask + (- h / 2) * (1. - mask)
+        theta = torch.arctan(yt / xt)
+        short_len = torch.norm(torch.cat([bb_x, bb_y], dim=2), dim=2).unsqueeze(-1) * k
+        rr_x = (short_len * torch.cos(math.pi / 2 - theta)) * mask + (w / 2) * (1. - mask)
+        rr_y = (short_len * torch.sin(math.pi / 2 - theta) * (-1) * s) * mask + (0) * (1. - mask)
+        ll_x = (-1 * short_len * torch.cos(math.pi / 2 - theta)) * mask + (- w / 2) * (1. - mask)
+        ll_y = (-1 * short_len * torch.sin(math.pi / 2 - theta) * (-1) * s) * mask + (0) * (1. - mask)
+        #
+"""
 
         detections = torch.cat([xs,  # cen_x
                                 ys,  # cen_y

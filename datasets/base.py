@@ -210,10 +210,14 @@ class BaseDataset(data.Dataset):
                 new_anno = {}
                 new_anno['xc'] = xc
                 new_anno['yc'] = yc
+                flag = bt_length > lr_length
                 new_anno['xt'], new_anno['yt'], new_anno['k'] = (
-                    abs(bb[0]), abs(bb[1]), lr_length / bt_length) if bt_length > lr_length \
+                    abs(bb[0]), abs(bb[1]), lr_length / bt_length) if flag \
                     else (abs(rr[0]), abs(rr[1]), bt_length / lr_length)
-                new_anno['s'] = 1 if bb[0] * bb[1] > 0 else 0
+                if flag:
+                    new_anno['s'] = 1 if bb[0] * bb[1] > 0 else 0
+                else:
+                    new_anno['s'] = 1 if rr[0] * rr[1] > 0 else 0
                 return new_anno
 
             new_anno = transform_coord(cen_x, cen_y, pts_4)
