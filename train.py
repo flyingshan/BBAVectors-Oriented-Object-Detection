@@ -12,6 +12,7 @@ def collater(data):
         out_data_dict[name] = []
     for sample in data:
         for name in sample:
+            # print(name, type(sample[name]))
             out_data_dict[name].append(torch.from_numpy(sample[name]))
     for name in out_data_dict:
         out_data_dict[name] = torch.stack(out_data_dict[name], dim=0)

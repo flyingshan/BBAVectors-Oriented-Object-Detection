@@ -162,9 +162,11 @@ class BaseDataset(data.Dataset):
         image_w = self.input_w // self.down_ratio
 
         hm = np.zeros((self.num_classes, image_h, image_w), dtype=np.float32)
-        wh = np.zeros((self.max_objs, 6), dtype=np.float32)  # 10 -> 6
+        wh = np.zeros((self.max_objs, 4), dtype=np.float32)  # 10 -> 6
         ## add
         cls_theta = np.zeros((self.max_objs, 1), dtype=np.float32)
+        sign = np.zeros((self.max_objs, 1), dtype=np.float32)
+        kk = np.zeros((self.max_objs, 1), dtype=np.float32)
         ## add end
         reg = np.zeros((self.max_objs, 2), dtype=np.float32)
         ind = np.zeros((self.max_objs), dtype=np.int64)
@@ -241,7 +243,7 @@ class BaseDataset(data.Dataset):
             #         wh[k, 6:8] = ll - ct
             wh[k, 0:1] = new_anno['xt']
             wh[k, 1:2] = new_anno['yt']
-            wh[k, 2:3] = new_anno['k']
+            kk[...] = new_anno['k']
 
             #####################################################################################
             # # draw
@@ -252,8 +254,8 @@ class BaseDataset(data.Dataset):
             #####################################################################################
             # horizontal channel
             w_hbbox, h_hbbox = self.cal_bbox_wh(pts_4)
-            wh[k, 3:5] = 1. * w_hbbox, 1. * h_hbbox  # 8:10 -> 4:6
-            wh[k, 5:6] = new_anno['s']
+            wh[k, 2:4] = 1. * w_hbbox, 1. * h_hbbox  # 8:10 -> 4:6
+            sign[...] = new_anno['s']
             #####################################################################################
             # # draw
             # cv2.line(copy_image2, (cen_x, cen_y), (int(cen_x), int(cen_y-wh[k, 9]/2)), (0, 0, 255), 1, 1)
@@ -288,7 +290,11 @@ class BaseDataset(data.Dataset):
                'wh': wh,
                'reg': reg,
                'cls_theta': cls_theta,
+               'k':kk,
+               'sign':sign
                }
+        # for name in ret:
+        #   print(name, type(ret[name]))
         return ret
 
     def __getitem__(self, index):

@@ -35,9 +35,11 @@ if __name__ == '__main__':
     dataset = {'ssdd':SSDD}
     num_classes = {'ssdd': 1}
     heads = {'hm': num_classes[args.dataset],
-             'wh': 6, #
+             'wh': 4, #
              'reg': 2,
-             'cls_theta': 1
+             'cls_theta': 1,
+             'sign':1,
+             'k':1
              }
     down_ratio = 4
     model = ctrbox_net.CTRBOX(heads=heads,
