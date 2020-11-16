@@ -34,7 +34,8 @@ class SSDD(BaseDataset):
         # 的原因，这个文件夹用于存放xywha标注的xml文件
 
     def load_img_ids(self):
-        # 使用imageset文件来加载对应训练测试的图像名，注意训练phase应该取为trainval和之前保持一致
+        # shit，改代码结构太麻烦了，这点需求，直接在测试inshore/offshore
+        # 的时候来这里改代码就完了
         image_set_index_file = os.path.join(self.data_dir, 'imageset', self.phase + '.txt')
         assert os.path.exists(image_set_index_file), 'Path does not exist: {}'.format(image_set_index_file)
         with open(image_set_index_file, 'r') as f:
@@ -126,6 +127,14 @@ class SSDD(BaseDataset):
                                      classname,
                                      ovthresh=0.5,
                                      use_07_metric=True)
+            import pickle
+            eval_results = {
+                'precision': prec,
+                'recall': rec,
+                'ap':ap
+            }
+            with open('/content/drive/My Drive/BBA-CenterNet/pr/' + 'result.pkl', 'wb') as f:
+                pickle.dump(eval_results, f)
             map = map + ap
             # print('rec: ', rec, 'prec: ', prec, 'ap: ', ap)
             print('{}:{} '.format(classname, ap * 100))

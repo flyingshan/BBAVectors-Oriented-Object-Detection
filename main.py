@@ -26,7 +26,9 @@ def parse_args():
     parser.add_argument('--dataset', type=str, default='dota', help='Name of dataset')
     parser.add_argument('--data_dir', type=str, default='../Datasets/dota', help='Data directory')
     parser.add_argument('--phase', type=str, default='test', help='Phase choice= {train, test, eval}')
+    parser.add_argument('--txt_name', type=str, default='test', help='Phase choice= {train, test, eval}')
     parser.add_argument('--wh_channels', type=int, default=8, help='Number of channels for the vectors (4x2)')
+    parser.add_argument('--test_file', type=str, default='default', help='Test txt file name= {test_inshore,test_offshore}, do not add this arg in other phases')
     args = parser.parse_args()
     return args
 
@@ -35,7 +37,7 @@ if __name__ == '__main__':
     dataset = {'ssdd':SSDD}
     num_classes = {'ssdd': 1}
     heads = {'hm': num_classes[args.dataset],
-             'wh': 10,
+             'wh': 18,
              'reg': 2,
              'cls_theta': 1
              }
