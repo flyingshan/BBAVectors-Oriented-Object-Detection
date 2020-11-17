@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 from datasets.DOTA_devkit.ResultMerge_multi_process import py_cpu_nms_poly_fast, py_cpu_nms_poly
-
+import time
 
 def decode_prediction(predictions, dsets, args, img_id, down_ratio):
     predictions = predictions[0, :, :]
@@ -55,6 +55,7 @@ def write_results(args,
                   result_path,
                   print_ps=False):
     results = {cat: {img_id: [] for img_id in dsets.img_ids} for cat in dsets.category}
+    start_time = time.time()
     for index in range(len(dsets)):
         data_dict = dsets.__getitem__(index)
         image = data_dict['image'].to(device)
@@ -90,7 +91,9 @@ def write_results(args,
                 results[cat][img_id].extend(nms_results)
         if print_ps:
             print('testing {}/{} data {}'.format(index+1, len(dsets), img_id))
-
+    end_time = time.time()
+    duration = end_time - start_time
+    print("Average test time per image is: {}s.".format(duration / len(dsets)))
     for cat in dsets.category:
         if cat == 'background':
             continue
