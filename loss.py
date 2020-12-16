@@ -108,14 +108,14 @@ class LossAll(torch.nn.Module):
         self.L_hm = FocalLoss()
         self.L_wh =  OffSmoothL1Loss()
         self.L_off = OffSmoothL1Loss()
-        self.L_cls_theta = BCELoss()
+        # self.L_cls_theta = BCELoss()
 
     def forward(self, pr_decs, gt_batch):
         hm_loss  = self.L_hm(pr_decs['hm'], gt_batch['hm'])
         wh_loss  = self.L_wh(pr_decs['wh'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['wh'])
         off_loss = self.L_off(pr_decs['reg'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['reg'])
         ## add
-        cls_theta_loss = self.L_cls_theta(pr_decs['cls_theta'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['cls_theta'])
+        # cls_theta_loss = self.L_cls_theta(pr_decs['cls_theta'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['cls_theta'])
 
         if isnan(hm_loss) or isnan(wh_loss) or isnan(off_loss):
             print('hm loss is {}'.format(hm_loss))
@@ -128,5 +128,5 @@ class LossAll(torch.nn.Module):
         # print(cls_theta_loss)
         # print('-----------------')
 
-        loss =  hm_loss + wh_loss + off_loss + cls_theta_loss
+        loss =  hm_loss + wh_loss + off_loss # + cls_theta_loss
         return loss

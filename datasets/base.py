@@ -6,6 +6,9 @@ import math
 from .draw_gaussian import draw_umich_gaussian, gaussian_radius
 from .transforms import random_flip, load_affine_matrix, random_crop_info, ex_box_jaccard
 from . import data_augment
+import sys,os
+sys.path.append(os.path.dirname(__file__) + os.sep + '../')
+from polar import polar_encode
 
 class BaseDataset(data.Dataset):
     def __init__(self, data_dir, phase, input_h=None, input_w=None, down_ratio=None):
@@ -139,16 +142,35 @@ class BaseDataset(data.Dataset):
         return np.asarray([bl, tl, tr, br], np.float32)
 
     def reorder_pts(self, tt, rr, bb, ll):
+        # 经测试，ssdd数据集中大概有40+个hbb目标
+        # print("wooooof, a hbb!")
         pts = np.asarray([tt,rr,bb,ll],np.float32)
-        l_ind = np.argmin(pts[:,0])
-        r_ind = np.argmax(pts[:,0])
-        t_ind = np.argmin(pts[:,1])
-        b_ind = np.argmax(pts[:,1])
+        l_ind = np.argmax(pts[:,0])
+        r_ind = np.argmin(pts[:,0])
+        t_ind = np.argmax(pts[:,1])
+        b_ind = np.argmin(pts[:,1])
         tt_new = pts[t_ind,:]
         rr_new = pts[r_ind,:]
         bb_new = pts[b_ind,:]
         ll_new = pts[l_ind,:]
         return tt_new,rr_new,bb_new,ll_new
+
+    def arrange_order(self, tt, rr, bb, ll):
+        pts = np.asarray([tt,rr,bb,ll],np.float32)
+        # 如果有零，说明向量垂直，则直接返回
+        if (pts == 0).sum() > 0:
+          return tt, rr, bb, ll
+        for v in [tt, rr, bb, ll]:
+          if v[0] > 0 and v[1] > 0:
+            tt_new = v
+          if v[0] < 0 and v[1] > 0:
+            rr_new = v
+          if v[0] < 0 and v[1] < 0:
+            bb_new = v
+          if v[0] > 0 and v[1] < 0:
+            ll_new = v
+
+        return tt_new, rr_new, bb_new, ll_new
 
 
     def generate_ground_truth(self, image, annotation):
@@ -161,7 +183,13 @@ class BaseDataset(data.Dataset):
         image_w = self.input_w // self.down_ratio
 
         hm = np.zeros((self.num_classes, image_h, image_w), dtype=np.float32)
-        wh = np.zeros((self.max_objs, 10), dtype=np.float32)
+
+        #####  注意这里加入了一个新的参数 #####
+        polar_points_num = 8
+        #####################################
+
+        wh = np.zeros((self.max_objs, polar_points_num), dtype=np.float32)
+
         ## add
         cls_theta = np.zeros((self.max_objs, 1), dtype=np.float32)
         ## add end
@@ -169,10 +197,7 @@ class BaseDataset(data.Dataset):
         ind = np.zeros((self.max_objs), dtype=np.int64)
         reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
         num_objs = min(annotation['rect'].shape[0], self.max_objs)
-        # ###################################### view Images #######################################
-        # copy_image1 = cv2.resize(image, (image_w, image_h))
-        # copy_image2 = copy_image1.copy()
-        # ##########################################################################################
+
         for k in range(num_objs):
             rect = annotation['rect'][k, :]
             cen_x, cen_y, bbox_w, bbox_h, theta = rect
@@ -188,59 +213,15 @@ class BaseDataset(data.Dataset):
             # generate wh ground_truth
             pts_4 = cv2.boxPoints(((cen_x, cen_y), (bbox_w, bbox_h), theta))  # 4 x 2
 
-            bl = pts_4[0,:]
-            tl = pts_4[1,:]
-            tr = pts_4[2,:]
-            br = pts_4[3,:]
+            # 将四点标注法转为极坐标距离标注
+            polar_infos = {}
+            polar_infos['pts_4'] = pts_4
+            polar_infos['ct'] = ct
+            polar_infos['theta'] = theta
+            polar_pts = np.asarray(polar_encode(polar_infos, polar_points_num), dtype=np.float32)
 
-            tt = (np.asarray(tl,np.float32)+np.asarray(tr,np.float32))/2
-            rr = (np.asarray(tr,np.float32)+np.asarray(br,np.float32))/2
-            bb = (np.asarray(bl,np.float32)+np.asarray(br,np.float32))/2
-            ll = (np.asarray(tl,np.float32)+np.asarray(bl,np.float32))/2
-
-            if theta in [-90.0, -0.0, 0.0]:  # (-90, 0]
-                tt,rr,bb,ll = self.reorder_pts(tt,rr,bb,ll)
             # rotational channel
-            wh[k, 0:2] = tt - ct
-            wh[k, 2:4] = rr - ct
-            wh[k, 4:6] = bb - ct
-            wh[k, 6:8] = ll - ct
-            #####################################################################################
-            # # draw
-            # cv2.line(copy_image1, (cen_x, cen_y), (int(tt[0]), int(tt[1])), (0, 0, 255), 1, 1)
-            # cv2.line(copy_image1, (cen_x, cen_y), (int(rr[0]), int(rr[1])), (255, 0, 255), 1, 1)
-            # cv2.line(copy_image1, (cen_x, cen_y), (int(bb[0]), int(bb[1])), (0, 255, 255), 1, 1)
-            # cv2.line(copy_image1, (cen_x, cen_y), (int(ll[0]), int(ll[1])), (255, 0, 0), 1, 1)
-            #####################################################################################
-            # horizontal channel
-            w_hbbox, h_hbbox = self.cal_bbox_wh(pts_4)
-            wh[k, 8:10] = 1. * w_hbbox, 1. * h_hbbox
-            #####################################################################################
-            # # draw
-            # cv2.line(copy_image2, (cen_x, cen_y), (int(cen_x), int(cen_y-wh[k, 9]/2)), (0, 0, 255), 1, 1)
-            # cv2.line(copy_image2, (cen_x, cen_y), (int(cen_x+wh[k, 8]/2), int(cen_y)), (255, 0, 255), 1, 1)
-            # cv2.line(copy_image2, (cen_x, cen_y), (int(cen_x), int(cen_y+wh[k, 9]/2)), (0, 255, 255), 1, 1)
-            # cv2.line(copy_image2, (cen_x, cen_y), (int(cen_x-wh[k, 8]/2), int(cen_y)), (255, 0, 0), 1, 1)
-            #####################################################################################
-            # v0
-            # if abs(theta)>3 and abs(theta)<90-3:
-            #     cls_theta[k, 0] = 1
-            # v1
-            jaccard_score = ex_box_jaccard(pts_4.copy(), self.cal_bbox_pts(pts_4).copy())
-            if jaccard_score<0.95:
-                cls_theta[k, 0] = 1
-        # ###################################### view Images #####################################
-        # # hm_show = np.uint8(cv2.applyColorMap(np.uint8(hm[0, :, :] * 255), cv2.COLORMAP_JET))
-        # # copy_image = cv2.addWeighted(np.uint8(copy_image), 0.4, hm_show, 0.8, 0)
-        #     if jaccard_score>0.95:
-        #         print(theta, jaccard_score, cls_theta[k, 0])
-        #         cv2.imshow('img1', cv2.resize(np.uint8(copy_image1), (image_w*4, image_h*4)))
-        #         cv2.imshow('img2', cv2.resize(np.uint8(copy_image2), (image_w*4, image_h*4)))
-        #         key = cv2.waitKey(0)&0xFF
-        #         if key==ord('q'):
-        #             cv2.destroyAllWindows()
-        #             exit()
-        # #########################################################################################
+            wh[k, :] = polar_pts
 
         ret = {'input': image,
                'hm': hm,
@@ -248,8 +229,8 @@ class BaseDataset(data.Dataset):
                'ind': ind,
                'wh': wh,
                'reg': reg,
-               'cls_theta':cls_theta,
                }
+
         return ret
 
     def __getitem__(self, index):

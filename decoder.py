@@ -1,6 +1,6 @@
 import torch.nn.functional as F
 import torch
-
+from polar import polar_decode
 class DecDecoder(object):
     def __init__(self, K, conf_thresh, num_classes):
         self.K = K
@@ -50,11 +50,12 @@ class DecDecoder(object):
         heat = pr_decs['hm']
         wh = pr_decs['wh']
         reg = pr_decs['reg']
-        cls_theta = pr_decs['cls_theta']
+        # cls_theta = pr_decs['cls_theta']
 
         batch, c, height, width = heat.size()
-        heat = self._nms(heat)
+        num_pts = 8
 
+        heat = self._nms(heat)
         scores, inds, clses, ys, xs = self._topk(heat)
         reg = self._tranpose_and_gather_feat(reg, inds)
         reg = reg.view(batch, self.K, 2)
@@ -63,35 +64,6 @@ class DecDecoder(object):
         clses = clses.view(batch, self.K, 1).float()
         scores = scores.view(batch, self.K, 1)
         wh = self._tranpose_and_gather_feat(wh, inds)
-        wh = wh.view(batch, self.K, 10)
-        # add
-        cls_theta = self._tranpose_and_gather_feat(cls_theta, inds)
-        cls_theta = cls_theta.view(batch, self.K, 1)
-        mask = (cls_theta>0.8).float().view(batch, self.K, 1)
-        #
-        tt_x = (xs+wh[..., 0:1])*mask + (xs)*(1.-mask)
-        tt_y = (ys+wh[..., 1:2])*mask + (ys-wh[..., 9:10]/2)*(1.-mask)
-        rr_x = (xs+wh[..., 2:3])*mask + (xs+wh[..., 8:9]/2)*(1.-mask)
-        rr_y = (ys+wh[..., 3:4])*mask + (ys)*(1.-mask)
-        bb_x = (xs+wh[..., 4:5])*mask + (xs)*(1.-mask)
-        bb_y = (ys+wh[..., 5:6])*mask + (ys+wh[..., 9:10]/2)*(1.-mask)
-        ll_x = (xs+wh[..., 6:7])*mask + (xs-wh[..., 8:9]/2)*(1.-mask)
-        ll_y = (ys+wh[..., 7:8])*mask + (ys)*(1.-mask)
-        #
-        detections = torch.cat([xs,                      # cen_x
-                                ys,                      # cen_y
-                                tt_x,
-                                tt_y,
-                                rr_x,
-                                rr_y,
-                                bb_x,
-                                bb_y,
-                                ll_x,
-                                ll_y,
-                                scores,
-                                clses],
-                               dim=2)
+        wh = wh.view(batch, self.K, num_pts)
 
-        index = (scores>self.conf_thresh).squeeze(0).squeeze(1)
-        detections = detections[:,index,:]
-        return detections.data.cpu().numpy()
+        return polar_decode(wh, scores, clses, xs, ys, self.conf_thresh, num_pts)

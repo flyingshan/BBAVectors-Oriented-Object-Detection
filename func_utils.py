@@ -13,16 +13,16 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
     scores0 = {cat: [] for cat in dsets.category}
     for pred in predictions:
         cen_pt = np.asarray([pred[0], pred[1]], np.float32)
-        tt = np.asarray([pred[2], pred[3]], np.float32)
-        rr = np.asarray([pred[4], pred[5]], np.float32)
-        bb = np.asarray([pred[6], pred[7]], np.float32)
-        ll = np.asarray([pred[8], pred[9]], np.float32)
-        tl = tt + ll - cen_pt
-        bl = bb + ll - cen_pt
-        tr = tt + rr - cen_pt
-        br = bb + rr - cen_pt
-        score = pred[10]
-        clse = pred[11]
+        tt = np.asarray([pred[-8], pred[-7]], np.float32)
+        rr = np.asarray([pred[-6], pred[-5]], np.float32)
+        bb = np.asarray([pred[-4], pred[-3]], np.float32)
+        ll = np.asarray([pred[-2], pred[-1]], np.float32)
+        tl = tt + ll + cen_pt
+        bl = bb + ll + cen_pt
+        tr = tt + rr + cen_pt
+        br = bb + rr + cen_pt
+        score = pred[2]
+        clse = pred[3]
         pts = np.asarray([tr, br, bl, tl], np.float32)
         pts[:, 0] = pts[:, 0] * down_ratio / args.input_w * w
         pts[:, 1] = pts[:, 1] * down_ratio / args.input_h * h

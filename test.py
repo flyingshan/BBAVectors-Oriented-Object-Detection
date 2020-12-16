@@ -170,7 +170,7 @@ class TestModule(object):
                     cv2.putText(ori_image, '{:.2f} {}'.format(score, cat), (box[1][0], box[1][1]),
                                 cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255), 1,1)
 
-            if args.dataset == 'hrsc':
+            if args.dataset == 'ssdd': #
                 gt_anno = dsets.load_annotation(cnt)
                 for pts_4 in gt_anno['pts']:
                     bl = pts_4[0, :]
@@ -181,12 +181,12 @@ class TestModule(object):
                     box = np.asarray([bl, tl, tr, br], np.float32)
                     box = np.int0(box)
                     cv2.drawContours(ori_image, [box], 0, (255, 255, 255), 1)
-
+            cv2.imwrite('./result_images/{}_det.jpg'.format(img_id), ori_image) # 
             # cv2.imshow('pr_image', ori_image)
-            k = cv2.waitKey(0) & 0xFF
-            if k == ord('q'):
-                cv2.destroyAllWindows()
-                exit()
+            # k = cv2.waitKey(0) & 0xFF
+            # if k == ord('q'):
+            #     cv2.destroyAllWindows()
+            #     exit()
             #"""
 
         total_time = total_time[1:]
