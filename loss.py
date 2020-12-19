@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from polar import IoUWeightedSmoothL1Loss
 
 class BCELoss(nn.Module):
     def __init__(self):
@@ -29,6 +29,7 @@ class BCELoss(nn.Module):
         # torch.Size([1, 500])
         # torch.Size([1, 500, 1])
         pred = self._tranpose_and_gather_feat(output, ind)  # torch.Size([1, 500, 1])
+        
         if mask.sum():
             mask = mask.unsqueeze(2).expand_as(pred).bool()
             loss = F.binary_cross_entropy(pred.masked_select(mask),
@@ -59,13 +60,22 @@ class OffSmoothL1Loss(nn.Module):
         return feat
 
     def forward(self, output, mask, ind, target):
-        # torch.Size([1, 2, 152, 152])
+        # torch.Size([batch, c, 152, 152])
         # torch.Size([1, 500])
         # torch.Size([1, 500])
-        # torch.Size([1, 500, 2])
+        # torch.Size([b, 500, c])
+        # print(target.size())
         pred = self._tranpose_and_gather_feat(output, ind)  # torch.Size([1, 500, 2])
+
         if mask.sum():
-            mask = mask.unsqueeze(2).expand_as(pred).bool()
+            # print(mask.size())
+            # for i in range(mask.size()[0]):
+            #   print(mask[i].sum())
+
+            mask = mask.unsqueeze(2).expand_as(pred).bool() # (b, 500, n)
+
+            # print(pred.masked_select(mask).size()) # (target_num * n)
+            # print(target.masked_select(mask).size())
             loss = F.smooth_l1_loss(pred.masked_select(mask),
                                     target.masked_select(mask),
                                     reduction='mean')
@@ -106,13 +116,13 @@ class LossAll(torch.nn.Module):
     def __init__(self):
         super(LossAll, self).__init__()
         self.L_hm = FocalLoss()
-        self.L_wh =  OffSmoothL1Loss()
+        self.L_wh = IoUWeightedSmoothL1Loss()
         self.L_off = OffSmoothL1Loss()
         # self.L_cls_theta = BCELoss()
 
     def forward(self, pr_decs, gt_batch):
         hm_loss  = self.L_hm(pr_decs['hm'], gt_batch['hm'])
-        wh_loss  = self.L_wh(pr_decs['wh'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['wh'])
+        wh_loss, iou_loss  = self.L_wh(pr_decs['wh'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['wh'])
         off_loss = self.L_off(pr_decs['reg'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['reg'])
         ## add
         # cls_theta_loss = self.L_cls_theta(pr_decs['cls_theta'], gt_batch['reg_mask'], gt_batch['ind'], gt_batch['cls_theta'])
@@ -122,11 +132,14 @@ class LossAll(torch.nn.Module):
             print('wh loss is {}'.format(wh_loss))
             print('off loss is {}'.format(off_loss))
 
+        # print()
+        # print('*'*20)
         # print(hm_loss)
-        # print(wh_loss)
+        # # print(wh_loss)
         # print(off_loss)
-        # print(cls_theta_loss)
+        # print(iou_loss * 2)
+        # print('*'*20)
         # print('-----------------')
 
-        loss =  hm_loss + wh_loss + off_loss # + cls_theta_loss
+        loss =  hm_loss + off_loss + 4 * iou_loss # + cls_theta_loss #  + wh_loss
         return loss

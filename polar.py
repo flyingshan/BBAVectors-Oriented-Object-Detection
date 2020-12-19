@@ -1,11 +1,15 @@
 # Created by Yishan 2020/12/14
 # Oriented Detection with Polar Vectors 
 
+import sys
+sys.path.append("./datasets/DOTA_devkit/")
 import numpy as np
 import math
 import torch.nn.functional as F
+import torch.nn as nn
 import torch
 from MBB import MinimumBoundingBox, BoundingBox
+import polyiou
 
 ###########--------Encode部分--------###########
 
@@ -287,3 +291,207 @@ def polar_decode(wh, scores, clses, xs, ys, thres, n):
     
     
     return detections.data.cpu().numpy()
+
+###########------Decode部分结束------###########
+
+
+###########-------IoU损失函数--------###########
+
+class IoUWeightedSmoothL1Loss(nn.Module):
+
+    def __init__(self):
+        super(IoUWeightedSmoothL1Loss, self).__init__()
+
+    def _gather_feat(self, feat, ind, mask=None):
+        dim = feat.size(2)
+        ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
+        feat = feat.gather(1, ind)
+        if mask is not None:
+            mask = mask.unsqueeze(2).expand_as(feat)
+            feat = feat[mask]
+            feat = feat.view(-1, dim)
+        return feat
+
+    def _tranpose_and_gather_feat(self, feat, ind):
+        feat = feat.permute(0, 2, 3, 1).contiguous()
+        feat = feat.view(feat.size(0), -1, feat.size(3))
+        feat = self._gather_feat(feat, ind)
+        return feat
+
+    def _polar_to_bboxes(self, polar_preds):
+        """
+        将polar_preds: gpu上size为[num_obj,n]的tensor转换为cpu上numpy array类型的[num_obj, 8]的bbox角点表示
+        """
+
+        # 1. 转为直角坐标
+        num_targets = polar_preds.size()[0]
+        n           = polar_preds.size()[1]
+
+        angles = torch.linspace(0, np.pi, n+1)[:-1].unsqueeze(0).repeat(num_targets,1).cuda() # (num_targets, n)
+        wh_x = torch.mul(polar_preds, torch.cos(angles))
+        wh_y = torch.mul(polar_preds, torch.sin(angles))
+        wh_x_symmetry = -1 * wh_x
+        wh_y_symmetry = -1 * wh_y
+
+        # 2. 直角坐标转MMB
+        target_loc_pts = np.zeros([num_targets, 8]) # trx try brx bry blx bly tlx tly
+    
+        for i in range(num_targets):
+            # 每个目标计算一个MMB
+            target_pts = []
+            for j in range(n):
+                target_pts.append((wh_x[i, j].cpu().detach().numpy(),          wh_y[i, j].cpu().detach().numpy()))
+                target_pts.append((wh_x_symmetry[i, j].cpu().detach().numpy(), wh_y_symmetry[i, j].cpu().detach().numpy()))
+            # 根据边界点计算最小包围盒
+            mbb = MinimumBoundingBox(target_pts)
+            
+            # 获得角点
+            corner_pts = mbb.corner_points
+            # 根据无序角点计算各边中点（无序）
+            tt, rr, bb, ll = calculate_boundary_points(corner_pts)
+            # 把无序变有序
+            # tt, rr, bb, ll = arrange_order(tt, rr, bb, ll) # 这里不需要严格顺序
+            # 重新生成有序角点
+            tr = tt + rr
+            br = bb + rr
+            bl = bb + ll
+            tl = tt + ll
+            # 将计算得到有序角点赋值给结果
+            target_loc_pts[i, 0] = float(tr[0])
+            target_loc_pts[i, 1] = float(tr[1])
+            target_loc_pts[i, 2] = float(br[0])
+            target_loc_pts[i, 3] = float(br[1])
+            target_loc_pts[i, 4] = float(bl[0])
+            target_loc_pts[i, 5] = float(bl[1])
+            target_loc_pts[i, 6] = float(tl[0])
+            target_loc_pts[i, 7] = float(tl[1])
+
+        return target_loc_pts
+
+    def _calculate_ious_one_batch(self, pred_bboxes, target_bboxes):
+        """
+        根据pred_bboxes: (num_obj, 8)和target_bboxes: (num_obj, 8), 计算ious: (num_obj, )的list
+        """
+
+        num_obj = pred_bboxes.shape[0]
+        ious_one_batch = []
+        for i in range(num_obj):
+            iou = polyiou.iou_poly(polyiou.VectorDouble(pred_bboxes[i]), polyiou.VectorDouble(target_bboxes[i]))
+            ious_one_batch.append(iou)
+
+        return ious_one_batch
+
+    def _calculate_ious(self, output, mask, ind, target):
+        """
+        ind可以将网络直接输出的结果output中取出目标中心点处的n个通道值;
+        mask可用于从已经“从图转为数组”的数据结构中，挑出那些真正是目标的数据;
+        计算这批数据中所有gt中心点出真实目标与预测目标的iou
+
+        return: ious_all 是一个有batch_size个元素的list，其中每个元素是一个[num_obj,]形状的list
+
+        size:
+        output: [b, n, w/4, h/4]
+        mask: [b, max_obj]
+        ind: [b, max_obj]
+        target: [b, max_obj, n]
+        """
+
+        num_pts = output.size()[1]
+
+        # 1. 特征图数据转为数组结构
+        pred = self._tranpose_and_gather_feat(output, ind)  # [b, max_obj, n]
+
+        ious_all = []
+
+        for b in range(pred.size()[0]):
+
+            # 2. 将有效的num_obj个目标信息从max_obj个信息中挑选出来(pred和target都需要)--[num_obj, n]
+            cur_pred   = pred[b]     # [max_obj, n]
+            cur_target = target[b]   # [max_obj, n]
+            cur_mask   = mask[b]     # [max_obj,  ]
+            num_obj    = cur_mask.sum()
+            if num_obj:
+                cur_mask     = cur_mask.unsqueeze(1).expand_as(cur_pred).type(torch.bool) # [max_obj, n]
+                valid_pred   = cur_pred.masked_select(cur_mask)       # [num_obj * n]
+                valid_target = cur_target.masked_select(cur_mask)     # [num_obj * n]
+                valid_pred   = valid_pred.reshape(num_obj, num_pts)   # [num_obj, n]
+                valid_target = valid_target.reshape(num_obj, num_pts) # [num_obj, n]
+
+                # 3. 分obj将极坐标信息转为直角坐标；
+                pred_bboxes  = self._polar_to_bboxes(valid_pred)   # [num_obj, 8]
+                target_bboxes= self._polar_to_bboxes(valid_target) # [num_obj, 8]
+
+                # 4. 计算当前batch所有obj的IoU
+                ious = self._calculate_ious_one_batch(pred_bboxes, target_bboxes) # [num_obj, ]
+                ious_all.append(ious)
+
+        return ious_all
+
+
+    def forward(self, output, mask, ind, target):
+        """
+        计算每个目标的SmoothL1Loss, 并根据对应的IoU进行加权求和，最后得到总的loss
+        """
+        
+        '''
+        实现思路：
+        1. 利用前面的辅助函数计算每个batch中不同目标处的iou；
+        2. 得到所有目标的回归loss
+        3. iou对这些loss加权求和
+        '''
+
+        # ious_all 是一个list, len(ious_all) = batch_size，其中每个元素是一个[num_obj,]形状的numpy array
+        # 1. 得到一个存有所有batch中所有目标的ious的列表
+        ious_all_lists = self._calculate_ious(output, mask, ind, target)
+        ious_all = []
+        for li in ious_all_lists:
+          ious_all.extend(li)
+
+        # print(ious_all)
+
+
+        # 2. 得到所有batch中所有目标中心处的回归结果与GT (num_targets, n)
+        n = target.size()[2]
+        pred = self._tranpose_and_gather_feat(output, ind)  # torch.Size([b, 500, n])
+
+        if mask.sum():
+            mask = mask.unsqueeze(2).expand_as(pred).bool() # (b, 500, n)
+            pred = pred.masked_select(mask).reshape(-1,n)
+            target= target.masked_select(mask).reshape(-1,n) 
+
+            # 3. 计算每个目标处的smooth_l1_loss
+            losses = []
+            for i in range(pred.size()[0]):
+              losses.append(F.smooth_l1_loss(pred[i], target[i], reduction='mean'))
+            # print(losses)
+            loss_reg = 0
+            loss_iou = 0
+            eps = np.finfo(np.float32).eps
+
+            # 4. 加权求和
+            for i in range(len(losses)):
+              loss_reg += losses[i]
+              alpha = - np.log(abs(ious_all[i]) + eps)
+              # print("alpha:", alpha)
+              loss_iou += alpha * losses[i] / (abs(losses[i].item()) + eps)
+              # magnitude = np.clip(-math.log(abs(ious_all[i])), 0, 100)
+              # print(magnitude)
+              # print( abs(losses[i].item()) )
+              # print(magnitude * losses[i] / (abs(losses[i].item())) + eps)
+              # loss_iou += (-math.log(abs(ious_all[i]))) * losses[i] / (abs(losses[i].item()))
+
+            loss_reg /= len(losses)
+            loss_iou /= len(losses)
+
+            # print()
+            # print('*' * 20)
+            # print(loss)
+            # print(loss2)
+            # print('*' * 20)
+            
+            return loss_reg, loss_iou
+        else:
+            return 0.
+
+###########-------IoU损失函数结束--------###########
+

@@ -20,7 +20,7 @@ class BaseDataset(data.Dataset):
         self.down_ratio = down_ratio
         self.img_ids = None
         self.num_classes = None
-        self.max_objs = 500
+        self.max_objs = 500 # 
         self.image_distort =  data_augment.PhotometricDistort()
 
     def load_img_ids(self):
@@ -198,6 +198,7 @@ class BaseDataset(data.Dataset):
         reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
         num_objs = min(annotation['rect'].shape[0], self.max_objs)
 
+        # print('!!!!!!!!!', num_objs)
         for k in range(num_objs):
             rect = annotation['rect'][k, :]
             cen_x, cen_y, bbox_w, bbox_h, theta = rect
