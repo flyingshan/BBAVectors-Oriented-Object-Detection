@@ -20,7 +20,7 @@ class BaseDataset(data.Dataset):
         self.down_ratio = down_ratio
         self.img_ids = None
         self.num_classes = None
-        self.max_objs = 500 # 
+        self.max_objs = 100 # 
         self.image_distort =  data_augment.PhotometricDistort()
 
     def load_img_ids(self):

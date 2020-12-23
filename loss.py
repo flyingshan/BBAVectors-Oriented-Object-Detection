@@ -141,5 +141,5 @@ class LossAll(torch.nn.Module):
         # print('*'*20)
         # print('-----------------')
 
-        loss =  hm_loss + off_loss + 4 * iou_loss # + cls_theta_loss #  + wh_loss
+        loss =  hm_loss + off_loss + wh_loss + iou_loss # + cls_theta_loss #  + wh_loss #  
         return loss

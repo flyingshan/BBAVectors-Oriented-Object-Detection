@@ -462,6 +462,10 @@ class IoUWeightedSmoothL1Loss(nn.Module):
             # 3. 计算每个目标处的smooth_l1_loss
             losses = []
             for i in range(pred.size()[0]):
+              # pred[i] = pred[i] / torch.max(pred[i])
+              # target[i] = target[i] / torch.max(target[i])
+              # print(pred[i] / torch.max(pred[i]))
+              # print(target[i] / torch.max(target[i]))
               losses.append(F.smooth_l1_loss(pred[i], target[i], reduction='mean'))
             # print(losses)
             loss_reg = 0
