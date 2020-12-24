@@ -37,7 +37,7 @@ if __name__ == '__main__':
     heads = {'hm': num_classes[args.dataset],
              'wh': 8,
              'reg': 2,
-            #  'cls_theta': 1
+             'ls': 2
              }
     down_ratio = 4
     model = ctrbox_net.CTRBOX(heads=heads,

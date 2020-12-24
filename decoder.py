@@ -50,6 +50,7 @@ class DecDecoder(object):
         heat = pr_decs['hm']
         wh = pr_decs['wh']
         reg = pr_decs['reg']
+        ls = pr_decs['ls']
         # cls_theta = pr_decs['cls_theta']
 
         batch, c, height, width = heat.size()
@@ -57,13 +58,21 @@ class DecDecoder(object):
 
         heat = self._nms(heat)
         scores, inds, clses, ys, xs = self._topk(heat)
+
         reg = self._tranpose_and_gather_feat(reg, inds)
         reg = reg.view(batch, self.K, 2)
+
+        ls = self._tranpose_and_gather_feat(ls, inds)
+        ls = ls.view(batch, self.K, 2)
+        shortest = ls[:, :, 0:1]
+        longest = ls[:, :, 1:2]
+
         xs = xs.view(batch, self.K, 1) + reg[:, :, 0:1]
         ys = ys.view(batch, self.K, 1) + reg[:, :, 1:2]
         clses = clses.view(batch, self.K, 1).float()
         scores = scores.view(batch, self.K, 1)
         wh = self._tranpose_and_gather_feat(wh, inds)
         wh = wh.view(batch, self.K, num_pts)
+        wh = (wh * (longest - shortest)) + shortest            # long - short 需不需要torch.abs?
 
         return polar_decode(wh, scores, clses, xs, ys, self.conf_thresh, num_pts)

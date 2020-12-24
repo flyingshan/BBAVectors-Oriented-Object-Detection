@@ -197,6 +197,8 @@ class BaseDataset(data.Dataset):
         ind = np.zeros((self.max_objs), dtype=np.int64)
         reg_mask = np.zeros((self.max_objs), dtype=np.uint8)
         num_objs = min(annotation['rect'].shape[0], self.max_objs)
+        # long short side
+        ls = np.zeros((self.max_objs, 2), dtype=np.float32)
 
         # print('!!!!!!!!!', num_objs)
         for k in range(num_objs):
@@ -221,8 +223,15 @@ class BaseDataset(data.Dataset):
             polar_infos['theta'] = theta
             polar_pts = np.asarray(polar_encode(polar_infos, polar_points_num), dtype=np.float32)
 
+            # longest-shortest encoding
+            shortest = min(bbox_h, bbox_w)
+            longest = math.sqrt(bbox_h**2 + bbox_w**2)
+            ls[k, :] = np.asarray([shortest, longest])
+
             # rotational channel
-            wh[k, :] = polar_pts
+            wh[k, :] = (polar_pts - shortest) / (longest - shortest)
+
+
 
         ret = {'input': image,
                'hm': hm,
@@ -230,6 +239,7 @@ class BaseDataset(data.Dataset):
                'ind': ind,
                'wh': wh,
                'reg': reg,
+               'ls': ls,
                }
 
         return ret
