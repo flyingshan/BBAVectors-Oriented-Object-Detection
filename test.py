@@ -155,39 +155,40 @@ class TestModule(object):
 
                     box = np.asarray([tl, tr, br, bl], np.float32)
                     cen_pts = np.mean(box, axis=0)
-                    cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(tt[0]), int(tt[1])), (0,0,255),1,1)
-                    cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(rr[0]), int(rr[1])), (255,0,255),1,1)
-                    cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(bb[0]), int(bb[1])), (0,255,0),1,1)
-                    cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(ll[0]), int(ll[1])), (255,0,0),1,1)
+                    # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(tt[0]), int(tt[1])), (0,0,255),1,1)
+                    # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(rr[0]), int(rr[1])), (255,0,255),1,1)
+                    # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(bb[0]), int(bb[1])), (0,255,0),1,1)
+                    # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(ll[0]), int(ll[1])), (255,0,0),1,1)
 
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(tl[0]), int(tl[1])), (0,0,255),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(tr[0]), int(tr[1])), (255,0,255),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(br[0]), int(br[1])), (0,255,0),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(bl[0]), int(bl[1])), (255,0,0),1,1)
-                    ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (255,0,255),1,1)
+                    ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),4,1)
                     # box = cv2.boxPoints(cv2.minAreaRect(box))
                     # ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),1,1)
-                    cv2.putText(ori_image, '{:.2f} {}'.format(score, cat), (box[1][0], box[1][1]),
-                                cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255), 1,1)
+                    # cv2.putText(ori_image, '{:.2f} {}'.format(score, cat), (box[1][0], box[1][1]),
+                    #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255), 1,1)
 
-            if args.dataset == 'hrsc':
-                gt_anno = dsets.load_annotation(cnt)
-                for pts_4 in gt_anno['pts']:
-                    bl = pts_4[0, :]
-                    tl = pts_4[1, :]
-                    tr = pts_4[2, :]
-                    br = pts_4[3, :]
-                    cen_pts = np.mean(pts_4, axis=0)
-                    box = np.asarray([bl, tl, tr, br], np.float32)
-                    box = np.int0(box)
-                    cv2.drawContours(ori_image, [box], 0, (255, 255, 255), 1)
+            # if args.dataset == 'hrsc':
+            #     gt_anno = dsets.load_annotation(cnt)
+            #     for pts_4 in gt_anno['pts']:
+            #         bl = pts_4[0, :]
+            #         tl = pts_4[1, :]
+            #         tr = pts_4[2, :]
+            #         br = pts_4[3, :]
+            #         cen_pts = np.mean(pts_4, axis=0)
+            #         box = np.asarray([bl, tl, tr, br], np.float32)
+            #         box = np.int0(box)
+            #         cv2.drawContours(ori_image, [box], 0, (255, 255, 255), 1)
 
             # cv2.imshow('pr_image', ori_image)
-            k = cv2.waitKey(0) & 0xFF
-            if k == ord('q'):
-                cv2.destroyAllWindows()
-                exit()
+            # k = cv2.waitKey(0) & 0xFF
+            # if k == ord('q'):
+            #     cv2.destroyAllWindows()
+            #     exit()
             #"""
+            cv2.imwrite('./result_images/{}_det.jpg'.format(img_id), ori_image) # 
 
         total_time = total_time[1:]
         print('avg time is {}'.format(np.mean(total_time)))
