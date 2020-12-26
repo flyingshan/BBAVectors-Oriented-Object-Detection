@@ -36,7 +36,7 @@ class SSDD(BaseDataset):
     def load_img_ids(self):
         # shit，改代码结构太麻烦了，这点需求，直接在测试inshore/offshore
         # 的时候来这里改代码就完了
-        image_set_index_file = os.path.join(self.data_dir, 'imageset', self.phase + '.txt')
+        image_set_index_file = os.path.join(self.data_dir, 'imageset', self.phase + '.txt') # 
         assert os.path.exists(image_set_index_file), 'Path does not exist: {}'.format(image_set_index_file)
         with open(image_set_index_file, 'r') as f:
             lines = f.readlines()
@@ -114,7 +114,7 @@ class SSDD(BaseDataset):
         detpath = os.path.join(result_path, 'Task1_{}.txt')
         annopath = os.path.join(self.label_path,
                                 '{}.xml')
-        imagesetfile = os.path.join(self.data_dir, 'imageset/test.txt')
+        imagesetfile = os.path.join(self.data_dir, 'imageset/test_offshore.txt')
         classaps = []
         map = 0
         for classname in self.category:

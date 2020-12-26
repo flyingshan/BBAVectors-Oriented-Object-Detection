@@ -185,7 +185,7 @@ class BaseDataset(data.Dataset):
         hm = np.zeros((self.num_classes, image_h, image_w), dtype=np.float32)
 
         #####  注意这里加入了一个新的参数 #####
-        polar_points_num = 8
+        polar_points_num = 12
         #####################################
 
         wh = np.zeros((self.max_objs, polar_points_num), dtype=np.float32)
