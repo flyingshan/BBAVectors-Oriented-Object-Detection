@@ -164,11 +164,15 @@ class TestModule(object):
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(tr[0]), int(tr[1])), (255,0,255),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(br[0]), int(br[1])), (0,255,0),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(bl[0]), int(bl[1])), (255,0,0),1,1)
-                    ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (255,0,255),1,1)
+                    
+                    ######## 画绿色粗矩形框 #########
+                    # ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),4,1)
+                    ###################################
+
                     # box = cv2.boxPoints(cv2.minAreaRect(box))
                     # ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),1,1)
-                    cv2.putText(ori_image, '{:.2f} {}'.format(score, cat), (box[1][0], box[1][1]),
-                                cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255), 1,1)
+                    # cv2.putText(ori_image, '{:.2f} {}'.format(score, cat), (box[1][0], box[1][1]),
+                    #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255), 1,1)
 
             if args.dataset == 'ssdd': #
                 gt_anno = dsets.load_annotation(cnt)
@@ -180,7 +184,7 @@ class TestModule(object):
                     cen_pts = np.mean(pts_4, axis=0)
                     box = np.asarray([bl, tl, tr, br], np.float32)
                     box = np.int0(box)
-                    cv2.drawContours(ori_image, [box], 0, (255, 255, 255), 1)
+                    cv2.drawContours(ori_image, [box], 0, (255, 0, 255), 4)
             cv2.imwrite('./result_images/{}_det.jpg'.format(img_id), ori_image) # 
             # cv2.imshow('pr_image', ori_image)
             # k = cv2.waitKey(0) & 0xFF

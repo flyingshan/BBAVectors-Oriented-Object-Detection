@@ -53,7 +53,7 @@ class DecDecoder(object):
         # cls_theta = pr_decs['cls_theta']
 
         batch, c, height, width = heat.size()
-        num_pts = 12
+        num_pts = 8
 
         heat = self._nms(heat)
         scores, inds, clses, ys, xs = self._topk(heat)

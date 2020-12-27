@@ -114,7 +114,7 @@ class SSDD(BaseDataset):
         detpath = os.path.join(result_path, 'Task1_{}.txt')
         annopath = os.path.join(self.label_path,
                                 '{}.xml')
-        imagesetfile = os.path.join(self.data_dir, 'imageset/test_offshore.txt')
+        imagesetfile = os.path.join(self.data_dir, 'imageset/test.txt')
         classaps = []
         map = 0
         for classname in self.category:
