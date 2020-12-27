@@ -216,12 +216,17 @@ def polar_decode(wh, scores, clses, xs, ys, thres, n):
 
         return polar_decode(wh, scores, cls, xs, ys, thres)
     sizes:
-    wh: (batch, self.K, 8)
-    clses: (batch, self.K, 1)
-    scores: (batch, self.K, 1)
-    xs: (batch, self.K, 1)
-    ys: (batch, self.K, 1)
-    thres: (1,)
+        wh: (batch, self.K, 8)
+        clses: (batch, self.K, 1)
+        scores: (batch, self.K, 1)
+        xs: (batch, self.K, 1)
+        ys: (batch, self.K, 1)
+        thres: (1,)
+    return:
+        detections: (batch, K, 4+(8+8+8+8)+8)
+        4:   ctx, cty, score, cls.
+        8*4: wh_x, wh_y, wh_sym_x, wh_sym_y.
+        8:   corner points of the targets.
     """
 
     '''
@@ -284,10 +289,13 @@ def polar_decode(wh, scores, clses, xs, ys, thres, n):
                             clses],
                             dim=2)
     detections = detections[:,index,:]
-    ####################################
-    # TODO: 修改func_utils中的索引序号 #
-    ####################################
-    detections = torch.cat([detections, target_loc_pts], dim=2)
+
+    # detections结构现在是这样的：
+    # 序号0~3 ctx, cty, score, cls.
+    # 序号[4~4+2N), 边界点x坐标
+    # 序号[4+2N, 4+4N), 边界点y坐标
+    # 序号[4+4N, -1], MMB边界点的x和y坐标
+    detections = torch.cat([detections, wh_x, wh_x_symmetry, wh_y, wh_y_symmetry, target_loc_pts], dim=2) # 5 6 7 8
     
     
     return detections.data.cpu().numpy()
@@ -498,4 +506,3 @@ class IoUWeightedSmoothL1Loss(nn.Module):
             return 0.
 
 ###########-------IoU损失函数结束--------###########
-

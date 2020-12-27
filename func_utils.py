@@ -11,6 +11,8 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
 
     pts0 = {cat: [] for cat in dsets.category}
     scores0 = {cat: [] for cat in dsets.category}
+    bd_pts0 = {cat: [] for cat in dsets.category}
+
     for pred in predictions:
         cen_pt = np.asarray([pred[0], pred[1]], np.float32)
         tt = np.asarray([pred[-8], pred[-7]], np.float32)
@@ -23,15 +25,33 @@ def decode_prediction(predictions, dsets, args, img_id, down_ratio):
         br = bb + rr + cen_pt
         score = pred[2]
         clse = pred[3]
+
+        ########################################
+        N = 8
+        bd_points_list_x = []
+        bd_points_list_y = []
+        for i in range(2*N):
+            x_i = (pred[4+i] + cen_pt[0]) * down_ratio / args.input_w * w
+            y_i = (pred[4+2*N+i] + cen_pt[1]) * down_ratio / args.input_h * h
+            bd_points_list_x.append(x_i) # 像其他点一样，加上中心点坐标
+            bd_points_list_y.append(y_i)
+        bd_x = np.asarray(bd_points_list_x)
+        bd_y = np.asarray(bd_points_list_y)
+        bd_pts = np.asarray([bd_x, bd_y])
+        ########################################
+
         pts = np.asarray([tr, br, bl, tl], np.float32)
         pts[:, 0] = pts[:, 0] * down_ratio / args.input_w * w
         pts[:, 1] = pts[:, 1] * down_ratio / args.input_h * h
+
         pts0[dsets.category[int(clse)]].append(pts)
         scores0[dsets.category[int(clse)]].append(score)
-    return pts0, scores0
+        bd_pts0[dsets.category[int(clse)]].append(bd_pts) # (num_targets, 2, 2N)
+
+    return pts0, scores0, bd_pts0
 
 
-def non_maximum_suppression(pts, scores):
+def non_maximum_suppression(pts, scores, bd_pts):
     nms_item = np.concatenate([pts[:, 0:1, 0],
                                pts[:, 0:1, 1],
                                pts[:, 1:2, 0],
@@ -42,8 +62,11 @@ def non_maximum_suppression(pts, scores):
                                pts[:, 3:4, 1],
                                scores[:, np.newaxis]], axis=1)
     nms_item = np.asarray(nms_item, np.float64)
+    bd_pts = np.asarray(bd_pts, np.float64)
+    
     keep_index = py_cpu_nms_poly_fast(dets=nms_item, thresh=0.1)
-    return nms_item[keep_index]
+
+    return nms_item[keep_index], bd_pts[keep_index] # 变成new_nms_item了
 
 
 def write_results(args,

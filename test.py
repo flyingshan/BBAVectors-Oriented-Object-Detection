@@ -108,25 +108,37 @@ class TestModule(object):
             torch.cuda.synchronize(self.device)
             decoded_pts = []
             decoded_scores = []
+            decoded_bd_pts = [] ##!!##
+            # (batch, num_targets, )
             predictions = self.decoder.ctdet_decode(pr_decs)
-            pts0, scores0 = func_utils.decode_prediction(predictions, dsets, args, img_id, down_ratio)
+            pts0, scores0, bd_pts0 = func_utils.decode_prediction(predictions, dsets, args, img_id, down_ratio)  ##!!##
             decoded_pts.append(pts0)
             decoded_scores.append(scores0)
+            decoded_bd_pts.append(bd_pts0)  ##!!##
             #nms
             results = {cat:[] for cat in dsets.category}
+            bd_results = {cat:[] for cat in dsets.category}  ##!!##
             for cat in dsets.category:
                 if cat == 'background':
                     continue
                 pts_cat = []
                 scores_cat = []
-                for pts0, scores0 in zip(decoded_pts, decoded_scores):
+                bd_pts_cat = [] ##!!##
+
+                for pts0, scores0, bd_pts0 in zip(decoded_pts, decoded_scores, decoded_bd_pts): ##!!##
                     pts_cat.extend(pts0[cat])
                     scores_cat.extend(scores0[cat])
+                    bd_pts_cat.extend(bd_pts0[cat]) ##!!##
+
                 pts_cat = np.asarray(pts_cat, np.float32)
                 scores_cat = np.asarray(scores_cat, np.float32)
+                bd_pts_cat = np.asarray(bd_pts_cat, np.float32) ##!!##
+
                 if pts_cat.shape[0]:
-                    nms_results = func_utils.non_maximum_suppression(pts_cat, scores_cat)
+                    nms_results, nms_bds = func_utils.non_maximum_suppression(pts_cat, scores_cat, bd_pts_cat)
                     results[cat].extend(nms_results)
+                    bd_results[cat].extend(nms_bds)
+
 
             end_time = time.time()
             total_time.append(end_time-begin_time)
@@ -141,7 +153,10 @@ class TestModule(object):
                 if cat == 'background':
                     continue
                 result = results[cat]
-                for pred in result:
+                bd     = bd_results[cat]
+                
+                for pred, bds in zip(result, bd):
+                    
                     score = pred[-1]
                     tl = np.asarray([pred[0], pred[1]], np.float32)
                     tr = np.asarray([pred[2], pred[3]], np.float32)
@@ -164,27 +179,41 @@ class TestModule(object):
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(tr[0]), int(tr[1])), (255,0,255),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(br[0]), int(br[1])), (0,255,0),1,1)
                     # cv2.line(ori_image, (int(cen_pts[0]), int(cen_pts[1])), (int(bl[0]), int(bl[1])), (255,0,0),1,1)
+
+                    
+
                     
                     ######## 画绿色粗矩形框 #########
-                    # ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),4,1)
+                    ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),4,1)
                     ###################################
+
+                    ############## 边界点 ###############
+                    # bds (2, 2N)
+                    points = []
+                    for i in range(bds.shape[1]):
+                        points.append([bds[0, i], bds[1, i]])
+
+                    for point in points:
+                        point = tuple([int(i) for i in point])
+                        ori_image = cv2.circle(ori_image, point, 3, (0,0,255), 4)
+                    ####################################
 
                     # box = cv2.boxPoints(cv2.minAreaRect(box))
                     # ori_image = cv2.drawContours(ori_image, [np.int0(box)], -1, (0,255,0),1,1)
                     # cv2.putText(ori_image, '{:.2f} {}'.format(score, cat), (box[1][0], box[1][1]),
                     #             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0,255,255), 1,1)
 
-            if args.dataset == 'ssdd': #
-                gt_anno = dsets.load_annotation(cnt)
-                for pts_4 in gt_anno['pts']:
-                    bl = pts_4[0, :]
-                    tl = pts_4[1, :]
-                    tr = pts_4[2, :]
-                    br = pts_4[3, :]
-                    cen_pts = np.mean(pts_4, axis=0)
-                    box = np.asarray([bl, tl, tr, br], np.float32)
-                    box = np.int0(box)
-                    cv2.drawContours(ori_image, [box], 0, (255, 0, 255), 4)
+            # if args.dataset == 'ssdd': #
+            #     gt_anno = dsets.load_annotation(cnt)
+            #     for pts_4 in gt_anno['pts']:
+            #         bl = pts_4[0, :]
+            #         tl = pts_4[1, :]
+            #         tr = pts_4[2, :]
+            #         br = pts_4[3, :]
+            #         cen_pts = np.mean(pts_4, axis=0)
+            #         box = np.asarray([bl, tl, tr, br], np.float32)
+            #         box = np.int0(box)
+            #         cv2.drawContours(ori_image, [box], 0, (255, 0, 255), 4)
             cv2.imwrite('./result_images/{}_det.jpg'.format(img_id), ori_image) # 
             # cv2.imshow('pr_image', ori_image)
             # k = cv2.waitKey(0) & 0xFF
