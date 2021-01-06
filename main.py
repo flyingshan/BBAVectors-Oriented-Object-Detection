@@ -35,7 +35,7 @@ if __name__ == '__main__':
     dataset = {'ssdd':SSDD}
     num_classes = {'ssdd': 1}
     heads = {'hm': num_classes[args.dataset],
-             'wh': 8,
+             'wh': 12,
              'reg': 2,
             #  'cls_theta': 1
              }

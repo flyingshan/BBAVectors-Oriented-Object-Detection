@@ -172,6 +172,50 @@ def polar_encode(points_info, n):
 
     return polar_pts_n
 
+##  椭圆编码实验 ##
+def calculate_intersection_distance_eclipse(target_angle, a, b, theta):
+    """
+    该函数计算target_angle角度对应的边界椭圆的交点与原点（中心点）的距离。
+    target_angle: 目标角度，弧度制。
+    neighbor_pts_angle: ([a_ag, b_ag], [b_ag, c_ag], [c_ag, d_ag], [d_ag, a_ag])
+    corner_pts: [a_pt, b_pt, c_pt, d_pt]
+
+    return: target_distance 即为 目标交点与中心点的距离。
+
+    """
+
+    a2 = a ** 2
+    b2 = b ** 2
+    tan_theta2 = math.tan(target_angle - theta) ** 2   
+    dist = math.sqrt((1 + tan_theta2) / (1 / a2 + tan_theta2 / b2))
+    
+    return dist
+
+def polar_encode_eclipse(points_info, n):
+    '''
+    该函数只处理一张图中一个目标的标注信息，将之从obb一般标注转为椭圆边界极坐标距离标注
+    points_info: 标注角点标注信息的一个字典。
+                 其中'pts_4'键对应角点位置信息；'ct'对应中心点位置信息；
+                 可以在具体实现中观察其使用方法。
+    n: 将0~180度分为几个部分，生成几个标注点，如每隔45度一点的话，n=4。
+    return: polar_pts_n表示极坐标系下每隔180/n角度，矩形框边界点与原点（中心点）产生的距离，是一个n长list。
+    '''
+
+    theta = points_info['theta']
+    w   = points_info['width']
+    h   = points_info['height']  
+
+    # 范围是[0, pi)内取n个点
+    delta_angle = np.pi / n
+    polar_pts_n = []
+    for i in range(n):
+        target_angle = delta_angle * i
+        a = w / 2.
+        b = h / 2.
+        target_distance = calculate_intersection_distance_eclipse(target_angle, a, b, theta)
+        polar_pts_n.append(target_distance)
+
+    return polar_pts_n
 
 ###########------Encode部分结束------###########
 

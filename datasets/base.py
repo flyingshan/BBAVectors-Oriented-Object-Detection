@@ -8,7 +8,7 @@ from .transforms import random_flip, load_affine_matrix, random_crop_info, ex_bo
 from . import data_augment
 import sys,os
 sys.path.append(os.path.dirname(__file__) + os.sep + '../')
-from polar import polar_encode
+from polar import polar_encode, polar_encode_eclipse
 
 class BaseDataset(data.Dataset):
     def __init__(self, data_dir, phase, input_h=None, input_w=None, down_ratio=None):
@@ -185,7 +185,7 @@ class BaseDataset(data.Dataset):
         hm = np.zeros((self.num_classes, image_h, image_w), dtype=np.float32)
 
         #####  注意这里加入了一个新的参数 #####
-        polar_points_num = 8
+        polar_points_num = 12
         #####################################
 
         wh = np.zeros((self.max_objs, polar_points_num), dtype=np.float32)
@@ -218,8 +218,13 @@ class BaseDataset(data.Dataset):
             polar_infos = {}
             polar_infos['pts_4'] = pts_4
             polar_infos['ct'] = ct
-            polar_infos['theta'] = theta
-            polar_pts = np.asarray(polar_encode(polar_infos, polar_points_num), dtype=np.float32)
+            # 角度转为弧度
+            polar_infos['theta'] = theta / 180. * np.pi
+            # 椭圆编码需要这两个信息, 顺序需要对应
+            polar_infos['width'] = bbox_w
+            polar_infos['height'] = bbox_h
+            # polar_encode -> polar_encode_eclipse
+            polar_pts = np.asarray(polar_encode_eclipse(polar_infos, polar_points_num), dtype=np.float32)
 
             # rotational channel
             wh[k, :] = polar_pts
